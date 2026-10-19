@@ -1,0 +1,158 @@
+OPENDESKSHARING – INSTALLATION UND UPDATE
+=========================================
+
+Dieses Paket dient sowohl zur Erstinstallation als auch zum Update.
+Das Installationsprogramm erkennt selbst, was zu tun ist.
+
+
+SO GEHT'S
+---------
+1. ZIP-Datei vollständig entpacken (Rechtsklick -> "Alle extrahieren").
+2. Im entpackten Ordner "Installieren.bat" doppelklicken.
+3. Die Frage nach Administratorrechten mit "Ja" bestätigen.
+4. Den Anweisungen im Fenster folgen (Enter übernimmt jeweils den Vorschlag).
+
+
+WAS BEI DER INSTALLATION PASSIERT
+---------------------------------
+- Prüfung: Administratorrechte, Vollständigkeit des Pakets (Prüfsummen),
+  freier Speicher, freier Port.
+- Python (ab 3.9, inkl. benötigter Module) wird gesucht. Fehlt es, fragt die
+  Installation, wie es installiert werden soll:
+    [1] automatisch von python.org herunterladen und installieren
+        (die digitale Signatur wird vor der Installation geprüft)
+    [2] manuell selbst installieren – mit Anleitung; danach prüft die
+        Installation erneut und macht weiter
+    [3] abbrechen
+  Wichtig bei manueller Installation: "Install Python for all users" wählen.
+- Einrichtung der Windows-Aufgabe "OpenDeskSharing" (Aufgabenplanung), über die
+  der Server im Hintergrund läuft (als SYSTEM, auch ohne angemeldeten Benutzer).
+  Der Server startet NICHT automatisch mit Windows – gestartet wird er mit
+  "OpenDeskSharing starten.bat". Wer einen automatischen Start möchte:
+  Aufgabenplanung > Aufgabe "OpenDeskSharing" > Eigenschaften > Trigger >
+  Neu > "Beim Start". Selbst angelegte Trigger bleiben bei Updates erhalten.
+- Startmenü-Ordner "OpenDeskSharing": öffnen, Server starten/beenden,
+  deinstallieren.
+- Firewall-Regel für den Port (Netzwerkprofile Domäne und Privat).
+- Eintrag unter "Programme und Features" und Desktop-Verknüpfung.
+- Die Vorgängerversion "Raumbuchung" (C:\Tools\Raumbuch, manuell gestartet
+  oder installiert) wird erkannt. Auf Rückfrage werden ihre Daten übernommen,
+  der alte Server gestoppt und abgemeldet. Der alte Ordner bleibt unverändert
+  als zusätzliche Sicherung liegen und kann danach gelöscht werden.
+
+
+VERSCHLÜSSELUNG (HTTPS)
+-----------------------
+OpenDeskSharing läuft verschlüsselt unter https://<Servername>:<Port>.
+Alte Lesezeichen mit http:// werden automatisch auf https:// umgeleitet.
+
+Das Zertifikat erzeugt OpenDeskSharing beim ersten Start selbst (keine
+Zusatzprogramme, kein Internet nötig):
+  - ein Stammzertifikat (20 Jahre gültig) und
+  - damit ein Serverzertifikat für Rechnername, vollständigen Namen,
+    localhost und die IP-Adressen des Servers. Es wird automatisch
+    erneuert, wenn es bald abläuft oder sich Name/Adressen ändern.
+
+Damit die Browser an den Arbeitsplätzen KEINE Zertifikatswarnung zeigen,
+muss das Stammzertifikat dort einmalig als vertrauenswürdig eingetragen
+werden. Am einfachsten per Gruppenrichtlinie (GPO):
+  Datei:  <Installationsordner>\OpenDeskSharing-Stammzertifikat.cer
+          (auch auf der Anmeldeseite und unter Einstellungen herunterladbar)
+  GPO:    Computerkonfiguration > Richtlinien > Windows-Einstellungen >
+          Sicherheitseinstellungen > Richtlinien für öffentliche Schlüssel >
+          Vertrauenswürdige Stammzertifizierungsstellen > Importieren
+Chrome und Edge nutzen den Windows-Zertifikatspeicher; Firefox ab
+Version 120 ebenfalls (Einstellung security.enterprise_roots.enabled).
+Auf dem Server selbst trägt die Installation das Zertifikat auf Rückfrage ein.
+
+Wird der Server über einen weiteren Namen (DNS-Alias) aufgerufen, diesen
+bei der Installation angeben:  Installieren.bat -TlsNames buchung.firma.local
+
+
+ANMELDUNG MIT WINDOWS-KONTO (ACTIVE DIRECTORY)
+----------------------------------------------
+Mitarbeiter können sich mit ihrem Windows-Benutzernamen und -Passwort
+anmelden. Das Passwort prüft Windows am Domänencontroller – OpenDeskSharing
+speichert es nicht. Einschalten unter Einstellungen > "Anmeldung mit
+Windows-Konto":
+  - Domäne, z. B. FIRMA
+  - Gruppe mit Zugang (leer = alle Konten der Domäne)
+  - Gruppe der Administratoren (leer = Rolle von Hand vergeben)
+Mit "Anmeldung testen" lässt sich das vor dem Einschalten prüfen.
+Voraussetzung: Der Server ist Mitglied der Domäne.
+Benutzer werden beim ersten Anmelden automatisch angelegt. Gruppen-
+änderungen im AD wirken bei der nächsten Anmeldung. Das lokale Konto
+"admin" bleibt als Notzugang bestehen.
+Bestehende Benutzer mit gleichem Namen werden NICHT automatisch übernommen:
+unter Benutzer > Bearbeiten die Anmeldung auf "Windows-/AD-Konto"
+umstellen – ihre Buchungen bleiben erhalten.
+
+
+BENUTZERGRUPPEN UND BUCHUNGSRECHTE
+----------------------------------
+Unter Benutzer > Gruppen Gruppen anlegen (z. B. "Geschäftsleitung", "Vertrieb")
+und Mitglieder zuordnen. Dann festlegen, wer wo buchen darf:
+  - Gebäude und Etage: Standorte & Pläne > Bearbeiten
+  - Raum (und seine Arbeitsplätze): Raumplan-Editor > Raum anklicken
+Es gilt die nächste Ebene mit einer Festlegung (Raum vor Etage vor Gebäude).
+Ohne Festlegung darf jeder buchen. Administratoren dürfen immer buchen.
+Für andere bleiben gesperrte Räume sichtbar, aber ausgegraut (mit Schloss).
+
+
+UPDATES VON GITHUB
+------------------
+Neue Versionen werden auf https://github.com/phillhf/OpenDeskSharing/releases
+veröffentlicht. In OpenDeskSharing unter Einstellungen > System:
+  "Nach Updates suchen" -> zeigt die neue Version und ihre Änderungen
+  "Version x.y.z installieren" -> lädt das Paket, prüft die Prüfsumme und
+  spielt es wie Installieren.bat ein (mit Sicherung und automatischer
+  Rückkehr bei Fehlern). Protokoll: logs\update_<Datum>.log
+GitHub wird NUR bei diesen Klicks kontaktiert. Ohne Internetzugang: Paket
+von der Release-Seite laden und am Server mit Installieren.bat einspielen.
+
+
+WAS BEI EINEM UPDATE PASSIERT
+-----------------------------
+1. Paket prüfen, Server stoppen.
+2. Sicherung von Programm UND Datenbank nach backup\<Datum>_v<alte Version>.
+3. Nur der Programmordner app\ wird ersetzt – data\ bleibt unberührt.
+4. Server starten und prüfen, ob die neue Version antwortet.
+5. Antwortet sie nicht, wird automatisch die alte Version mit der alten
+   Datenbank wiederhergestellt.
+Es werden die letzten 10 Sicherungen aufbewahrt.
+
+
+ORDNER DER INSTALLATION (Standard: C:\Tools\OpenDeskSharing)
+------------------------------------------------------------
+  app\                 Programm (wird bei Updates ersetzt)
+  data\                Datenbank opendesksharing.db (nur Administratoren/SYSTEM)
+  backup\              automatische Sicherungen vor jedem Update
+  logs\                server.log und Installationsprotokolle
+  install.json         Einstellungen der Installation (Port, Python-Pfad, Version)
+  OpenDeskSharing-Stammzertifikat.cer   zum Verteilen an die Arbeitsplätze
+  OpenDeskSharing starten.bat   Server starten (zeigt Adresse, öffnet Browser)
+  OpenDeskSharing beenden.bat   Server beenden
+  Deinstallieren.bat   Programm entfernen (Daten bleiben auf Wunsch erhalten)
+
+
+OPTIONEN (für Fortgeschrittene)
+-------------------------------
+  Installieren.bat -Port 8090               anderen Port verwenden
+  Installieren.bat -BindHost 127.0.0.1      nur auf diesem Rechner erreichbar
+  Installieren.bat -InstallDir D:\ODS       anderer Installationsordner
+  Installieren.bat -Unattended              ohne Rückfragen
+  Installieren.bat -Force                   ältere Version einspielen (Downgrade)
+  Installieren.bat -TlsNames buchung.firma.local
+                                            weiterer Name fürs Zertifikat
+  Installieren.bat -NoHttps                 ohne Verschlüsselung (nicht empfohlen)
+
+
+PROBLEME?
+---------
+- Protokolle: <Installationsordner>\logs\install_*.log und server.log
+- Server starten: 'OpenDeskSharing starten.bat' im Installationsordner oder
+  Startmenü > OpenDeskSharing > Server starten. Zeigt an, ob der Server läuft,
+  und bei Problemen die letzten Einträge aus dem Protokoll.
+- Eine ältere Version wiederherstellen: das Paket der älteren Version mit
+  "Installieren.bat -Force" einspielen; die Datenbank-Sicherungen liegen in
+  backup\.
