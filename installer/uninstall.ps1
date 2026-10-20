@@ -93,11 +93,13 @@ try {
     if (Test-Path $MarkerFile) { Remove-Item $MarkerFile -Force }
     $lnk = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "$Instance.url"
     if (Test-Path $lnk) { Remove-Item $lnk -Force }
+    $lnk2 = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "$Instance.lnk"
+    if (Test-Path $lnk2) { Remove-Item $lnk2 -Force }
     $menu = Join-Path ([Environment]::GetFolderPath("CommonPrograms")) $Instance
     if (Test-Path $menu) { Remove-Item $menu -Recurse -Force }
     Write-Host "    [OK] Firewall-Regel, Registrierung und Verknüpfung entfernt" -ForegroundColor Green
 
-    foreach ($n in @("app", "app.new", "app.old", "install.json", "Deinstallieren.bat", "Neustarten.bat", "OpenDeskSharing starten.bat", "OpenDeskSharing beenden.bat", "OpenDeskSharing-Stammzertifikat.cer")) {
+    foreach ($n in @("app", "app.new", "app.old", "install.json", "Deinstallieren.bat", "Neustarten.bat", "OpenDeskSharing starten.bat", "OpenDeskSharing beenden.bat", "OpenDeskSharing starten.lnk", "OpenDeskSharing beenden.lnk", "OpenDeskSharing-Stammzertifikat.cer")) {
         $p = Join-Path $root $n
         if (Test-Path $p) { Remove-Item $p -Recurse -Force }
     }

@@ -36,7 +36,12 @@ param(
     [switch]$NoTrustCert,
     [string]$Instance = "OpenDeskSharing",
     [string]$PredecessorName = "Raumbuchung",
-    [string]$PredecessorDir = "C:\Tools\Raumbuch"
+    [string]$PredecessorDir = "C:\Tools\Raumbuch",
+    # Für das grafische Setup (OpenDeskSharing-Setup-x.y.z.exe):
+    [switch]$Detect,                 # nur vorhandene Installation und Python erkennen, Ergebnis in -DetectFile
+    [string]$DetectFile = "",
+    [switch]$NoUninstallEntry,       # Eintrag unter "Programme und Features" übernimmt das Setup
+    [string]$ProgressFile = ""       # aktueller Schritt für die Fortschrittsanzeige des Setups
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,7 +57,14 @@ $RegKey = "HKLM:\SOFTWARE\$Instance"
 $UninstKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$Instance"
 
 # ------------------------------------------------------------------ Ausgabe-Helfer
-function Write-Step($t) { Write-Host ""; Write-Host "==> $t" -ForegroundColor Cyan }
+function Write-Step($t) {
+    Write-Host ""; Write-Host "==> $t" -ForegroundColor Cyan
+    if ($ProgressFile) {
+        # nur ASCII, damit das Setup die Datei unabhängig von der Zeichenkodierung lesen kann
+        $a = $t -replace 'ä', 'ae' -replace 'ö', 'oe' -replace 'ü', 'ue' -replace 'Ä', 'Ae' -replace 'Ö', 'Oe' -replace 'Ü', 'Ue' -replace 'ß', 'ss' -replace '[^ -~]', ''
+        try { [IO.File]::WriteAllText($ProgressFile, $a) } catch { }
+    }
+}
 function Write-Ok($t)   { Write-Host "    [OK] $t" -ForegroundColor Green }
 function Write-Info($t) { Write-Host "    $t" }
 function Write-Warn($t) { Write-Host "    [!] $t" -ForegroundColor Yellow }
@@ -582,15 +594,24 @@ function Write-Helpers([string]$Root) {
     New-Item -ItemType Directory -Force -Path $setup | Out-Null
     Copy-Item (Join-Path $PkgRoot "setup\uninstall.ps1") $setup -Force
     Copy-Item (Join-Path $PkgRoot "setup\steuerung.ps1") $setup -Force
+    $ico = Join-Path $PkgRoot "setup\app.ico"
+    if (Test-Path $ico) { Copy-Item $ico $setup -Force }
     $elevate = "net session >nul 2>&1`r`nif errorlevel 1 (`r`n  powershell -NoProfile -Command `"Start-Process -FilePath '%~f0' -Verb RunAs`"`r`n  exit /b`r`n)`r`n"
     $uninst = "@echo off`r`n$elevate" + "powershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0setup\uninstall.ps1`" -Instance `"$Instance`"`r`npause`r`n"
     $ctl = { param($a) "@echo off`r`ntitle OpenDeskSharing`r`n$elevate" + "powershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0setup\steuerung.ps1`" -Aktion $a`r`necho.`r`npause`r`n" }
-    [IO.File]::WriteAllText((Join-Path $Root "Deinstallieren.bat"), $uninst, [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText((Join-Path $Root "OpenDeskSharing starten.bat"), (& $ctl "Start"), [Text.Encoding]::ASCII)
-    [IO.File]::WriteAllText((Join-Path $Root "OpenDeskSharing beenden.bat"), (& $ctl "Stop"), [Text.Encoding]::ASCII)
-    # bis 1.5.0: Neustarten.bat – ersetzt durch "OpenDeskSharing starten.bat"
-    $old = Join-Path $Root "Neustarten.bat"
-    if (Test-Path $old) { Remove-Item $old -Force }
+    if ($script:cfg -and -not $script:cfg.uninstallEntry) {
+        # mit dem grafischen Setup installiert: Deinstallation über "Programme und Features" bzw. das Startmenü
+        $u = Join-Path $Root "Deinstallieren.bat"; if (Test-Path $u) { Remove-Item $u -Force }
+    } else {
+        [IO.File]::WriteAllText((Join-Path $Root "Deinstallieren.bat"), $uninst, [Text.Encoding]::ASCII)
+    }
+    New-ControlLink (Join-Path $Root "OpenDeskSharing starten.lnk") $Root "Start" "OpenDeskSharing starten und im Browser öffnen"
+    New-ControlLink (Join-Path $Root "OpenDeskSharing beenden.lnk") $Root "Stop" "OpenDeskSharing beenden"
+    # bis 1.5.0: Neustarten.bat, bis 1.6.0: .bat-Dateien mit Konsolenfenster – ersetzt durch Verknüpfungen
+    foreach ($n in @("Neustarten.bat", "OpenDeskSharing starten.bat", "OpenDeskSharing beenden.bat")) {
+        $old = Join-Path $Root $n
+        if (Test-Path $old) { Remove-Item $old -Force }
+    }
 }
 
 function Remove-OldBackups([string]$Root) {
@@ -599,10 +620,18 @@ function Remove-OldBackups([string]$Root) {
 }
 
 # ------------------------------------------------------------------ Registrierung
+$SetupUninstKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{8F3C2A61-5B7D-4E2A-9C41-0D6E2B7A3F15}_is1"
+
 function Register-Program($Cfg) {
     New-Item -Path $RegKey -Force | Out-Null
     Set-ItemProperty -Path $RegKey -Name InstallDir -Value $Cfg.installDir
     Set-ItemProperty -Path $RegKey -Name Version -Value $Cfg.version
+    if (-not $Cfg.uninstallEntry) {
+        # Mit dem grafischen Setup installiert: dessen Eintrag gilt – eigenen (alten) Eintrag entfernen, Version nachführen
+        Remove-Item $UninstKey -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $SetupUninstKey) { Set-ItemProperty -Path $SetupUninstKey -Name DisplayVersion -Value $Cfg.version }
+        return
+    }
     New-Item -Path $UninstKey -Force | Out-Null
     $size = [int]((Get-ChildItem (Join-Path $Cfg.installDir "app") -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)
     $props = @{
@@ -626,21 +655,43 @@ function Set-Firewall($Cfg) {
         -LocalPort $Cfg.port -Action Allow -Profile Domain, Private | Out-Null
 }
 
+# Verknüpfung, die steuerung.ps1 ohne Konsolenfenster aufruft (Rückmeldung als Windows-Fenster)
+function New-ControlLink([string]$Path, [string]$Root, [string]$Aktion, [string]$Description) {
+    $sh = New-Object -ComObject WScript.Shell
+    $l = $sh.CreateShortcut($Path)
+    $l.TargetPath = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Root\setup\steuerung.ps1`" -Aktion $Aktion -Gui"
+    $l.WorkingDirectory = $Root
+    $l.WindowStyle = 7   # minimiert – kein aufblitzendes Fenster
+    $l.Description = $Description
+    $ico = Join-Path $Root "setup\app.ico"
+    if (Test-Path $ico) { $l.IconLocation = "$ico,0" }
+    $l.Save()
+}
+
 function Set-Shortcut($Cfg) {
-    $lnk = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "$Instance.url"
-    "[InternetShortcut]`r`nURL=$(Get-Scheme $Cfg)://localhost:$($Cfg.port)/`r`n" | Set-Content -Path $lnk -Encoding ASCII
+    # Desktop: "OpenDeskSharing" startet den Server bei Bedarf und öffnet den Browser
+    $desk = [Environment]::GetFolderPath("CommonDesktopDirectory")
+    $old = Join-Path $desk "$Instance.url"
+    if (Test-Path $old) { Remove-Item $old -Force }
+    New-ControlLink (Join-Path $desk "$Instance.lnk") $Cfg.installDir "Start" "OpenDeskSharing starten und im Browser öffnen"
 }
 
 function Set-StartMenu($Cfg) {
-    # Startmenü-Ordner für alle Benutzer: öffnen, starten, beenden, deinstallieren
+    # Startmenü-Ordner für alle Benutzer: "OpenDeskSharing" (starten + öffnen), beenden, deinstallieren
     $dir = Join-Path ([Environment]::GetFolderPath("CommonPrograms")) $Instance
-    if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    "[InternetShortcut]`r`nURL=$(Get-Scheme $Cfg)://localhost:$($Cfg.port)/`r`n" | Set-Content -Path (Join-Path $dir "OpenDeskSharing öffnen.url") -Encoding ASCII
-    $sh = New-Object -ComObject WScript.Shell
-    foreach ($e in @(@("Server starten", "OpenDeskSharing starten.bat"), @("Server beenden", "OpenDeskSharing beenden.bat"), @("Deinstallieren", "Deinstallieren.bat"))) {
-        $l = $sh.CreateShortcut((Join-Path $dir "$($e[0]).lnk"))
-        $l.TargetPath = Join-Path $Cfg.installDir $e[1]
+    foreach ($n in @("OpenDeskSharing öffnen.url", "Server starten.lnk", "Server beenden.lnk", "Deinstallieren.lnk")) {
+        $p = Join-Path $dir $n
+        if (Test-Path $p) { Remove-Item $p -Force }   # Einträge älterer Versionen
+    }
+    New-ControlLink (Join-Path $dir "OpenDeskSharing.lnk") $Cfg.installDir "Start" "OpenDeskSharing starten und im Browser öffnen"
+    New-ControlLink (Join-Path $dir "OpenDeskSharing beenden.lnk") $Cfg.installDir "Stop" "OpenDeskSharing beenden"
+    if ($Cfg.uninstallEntry) {
+        # ohne grafisches Setup installiert (das legt seinen eigenen Eintrag an)
+        $sh = New-Object -ComObject WScript.Shell
+        $l = $sh.CreateShortcut((Join-Path $dir "OpenDeskSharing deinstallieren.lnk"))
+        $l.TargetPath = Join-Path $Cfg.installDir "Deinstallieren.bat"
         $l.WorkingDirectory = $Cfg.installDir
         $l.Save()
     }
@@ -665,6 +716,32 @@ function Set-CertTrust($Cfg) {
 }
 
 # ================================================================== Ablauf
+if ($Detect) {
+    # Für das grafische Setup: vorhandene Installation und Python erkennen, als key=value-Zeilen ausgeben
+    $out = New-Object System.Collections.Generic.List[string]
+    try {
+        $f = Find-Installation
+        $j = $null
+        if ($f -and $f.Kind -eq "installed") { $j = Get-Content (Join-Path $f.Dir "install.json") -Raw -Encoding UTF8 | ConvertFrom-Json }
+        $out.Add("found=$(if ($f) { 1 } else { 0 })")
+        if ($f) { $out.Add("dir=$($f.Dir)"); $out.Add("kind=$($f.Kind)"); $out.Add("version=$($f.Version)"); $out.Add("source=$($f.Source)") }
+        if (-not $f -and $script:StaleRefs.Count) { $out.Add("stale=$($script:StaleRefs[0].Dir)") }
+        if ($j) {
+            $out.Add("port=$($j.port)")
+            $out.Add("firewall=$(if ($null -eq $j.firewall -or $j.firewall) { 1 } else { 0 })")
+            $out.Add("shortcuts=$(if ($null -eq $j.shortcuts -or $j.shortcuts) { 1 } else { 0 })")
+        }
+        $py = Find-Python $(if ($j) { [string]$j.python } else { "" })
+        $out.Add("python=$(if ($py) { $py.Exe } else { '' })")
+        $out.Add("pyversion=$(if ($py) { $py.Version } else { '' })")
+        $pred = Find-Predecessor
+        if ($pred -and -not $f) { $out.Add("predecessor=$($pred.Dir)") }
+        $out.Add("ok=1")
+    } catch { $out.Add("error=$($_.Exception.Message)") }
+    if ($DetectFile) { [IO.File]::WriteAllLines($DetectFile, $out, (New-Object Text.UTF8Encoding $true)) } else { $out }
+    exit 0
+}
+
 try { Start-Transcript -Path $TempLog -Force | Out-Null } catch { }
 $exitCode = 0
 $root = $null
@@ -731,6 +808,10 @@ try {
     $cfgFile = Join-Path $root "install.json"
     $old = $null
     if (Test-Path $cfgFile) { $old = Get-Content $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json }
+    if ($old -and $old.instance -and $old.instance -ne $Instance) {
+        # Ordner gehört zu einer anderen Installation (andere Instanz) – niemals fremde Installationen überschreiben
+        throw "In $root liegt bereits eine andere OpenDeskSharing-Installation (Instanz '$($old.instance)'). Bitte einen anderen Ordner wählen."
+    }
     $legacy = (-not $old) -and (Test-Path (Join-Path $root "server.py"))
     $mode = if ($old) { "update" } elseif ($legacy) { "legacy" } else { "install" }
 
@@ -751,6 +832,7 @@ try {
         python      = if ($old) { $old.python } else { "" }
         https       = if ($NoHttps) { $false } elseif ($old -and $null -ne $old.https) { [bool]$old.https } else { $true }
         manualStart = $true
+        uninstallEntry = if ($NoUninstallEntry) { $false } elseif ($old -and $null -ne $old.uninstallEntry) { [bool]$old.uninstallEntry } else { $true }
         # Wahl bei der Installation merken, damit Updates (auch über die Weboberfläche) sie beibehalten
         firewall    = if ($NoFirewall) { $false } elseif ($old -and $null -ne $old.firewall) { [bool]$old.firewall } else { $true }
         shortcuts   = if ($NoShortcut) { $false } elseif ($old -and $null -ne $old.shortcuts) { [bool]$old.shortcuts } else { $true }
@@ -983,9 +1065,8 @@ try {
     Write-Info "  backup\  automatische Sicherungen vor jedem Update (die letzten $KeepBackups)"
     Write-Info "  logs\    Protokolle"
     Write-Info ""
-    Write-Info "Server starten:  'OpenDeskSharing starten.bat' im Installationsordner"
-    Write-Info "                 oder Startmenü > $Instance > Server starten"
-    Write-Info "Server beenden:  'OpenDeskSharing beenden.bat' bzw. Startmenü > $Instance > Server beenden"
+    Write-Info "Starten und öffnen:  Verknüpfung 'OpenDeskSharing' (Desktop, Startmenü, Installationsordner)"
+    Write-Info "Beenden:             'OpenDeskSharing beenden' (Startmenü, Installationsordner)"
     if ($usePred -and $pred.Dir -ne $root) {
         Write-Info ""
         Write-Info "Der alte Ordner $($pred.Dir) wird nicht mehr benötigt. Nach einer Kontrolle,"

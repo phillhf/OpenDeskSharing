@@ -6,6 +6,9 @@ Erzeugt ein Installations-/Update-Paket:  dist/OpenDeskSharing-<Version>.zip
   python build.py --python C:\\pfad\\python-3.12.10-amd64.exe
                                           Python-Installer ins Paket legen (für Rechner ohne Internet)
   python build.py --force                 vorhandenes Paket gleicher Version überschreiben
+  python build.py --no-setup              ohne grafisches Setup (OpenDeskSharing-Setup-<Version>.exe)
+
+Das Setup wird mit Inno Setup 6 erzeugt (ISCC.exe), sofern installiert.
 
 Nur für Tests: --src, --version, --out
 """
@@ -47,6 +50,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "dist"))
     ap.add_argument("--python", help="Python-Installationsdatei (python-*.exe) mit ins Paket legen")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--no-setup", action="store_true", help="kein grafisches Setup erzeugen")
     a = ap.parse_args()
 
     version = a.version or open(os.path.join(a.src, "VERSION"), encoding="utf-8").read().strip()
@@ -90,6 +94,7 @@ def main():
         write_text(os.path.join(stage, "setup", f), open(os.path.join(inst, f), encoding="utf-8").read(), bom=True, crlf=True)
     write_text(os.path.join(stage, "Installieren.bat"), open(os.path.join(inst, "Installieren.bat"), encoding="utf-8").read(), crlf=True)
     write_text(os.path.join(stage, "LIESMICH.txt"), open(os.path.join(inst, "LIESMICH.txt"), encoding="utf-8").read(), bom=True, crlf=True)
+    shutil.copy2(os.path.join(inst, "app.ico"), os.path.join(stage, "setup", "app.ico"))
     if a.python:
         os.makedirs(os.path.join(stage, "setup", "python"))
         shutil.copy2(a.python, os.path.join(stage, "setup", "python", os.path.basename(a.python)))
@@ -112,11 +117,26 @@ def main():
             for n in sorted(names):
                 full = os.path.join(dirpath, n)
                 z.write(full, os.path.join(name, os.path.relpath(full, stage)))
-    shutil.rmtree(stage_root, ignore_errors=True)
     digest = sha256(zip_path)
     write_text(zip_path + ".sha256", f"{digest}  {os.path.basename(zip_path)}\n")
     print(f"Paket erstellt: {zip_path}  ({os.path.getsize(zip_path) // 1024} KB, {len(files)} Dateien)")
     print(f"SHA-256: {digest}")
+
+    # Grafisches Setup (Inno Setup) aus demselben Paketinhalt
+    if not a.no_setup:
+        iscc = next((p for p in (os.path.expandvars(r"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"),
+                                 os.path.expandvars(r"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"),
+                                 os.path.expandvars(r"%ProgramFiles%\Inno Setup 6\ISCC.exe")) if os.path.exists(p)), None)
+        if not iscc:
+            print("Hinweis: Inno Setup 6 nicht gefunden – kein grafisches Setup erzeugt (winget install JRSoftware.InnoSetup).")
+        else:
+            out = os.path.abspath(a.out)
+            subprocess.run([iscc, "/Qp", f"/DAppVersion={version}", f"/DPkgDir={stage}", f"/O{out}",
+                            os.path.join(inst, "OpenDeskSharing.iss")], check=True)
+            exe = os.path.join(out, f"OpenDeskSharing-Setup-{version}.exe")
+            write_text(exe + ".sha256", f"{sha256(exe)}  {os.path.basename(exe)}\n")
+            print(f"Setup erstellt: {exe}  ({os.path.getsize(exe) // 1024} KB)")
+    shutil.rmtree(stage_root, ignore_errors=True)
 
 
 if __name__ == "__main__":

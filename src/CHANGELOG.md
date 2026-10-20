@@ -1,5 +1,18 @@
 # Änderungsprotokoll
 
+## 1.7.0 – 20.10.2026
+- **Grafisches Setup** `OpenDeskSharing-Setup-<Version>.exe` (Windows-Installationsassistent statt Konsolenfenster):
+  erkennt eine vorhandene Installation und aktualisiert sie, Port mit Prüfung auf belegte Ports (zeigt das
+  blockierende Programm), Optionen als Häkchen (Firewall, Verknüpfungen, Zertifikat, Python bei Bedarf automatisch),
+  Fortschrittsanzeige, Abschlussseite mit Adresse und Erstanmeldung. Deinstallation über „Apps / Programme und Features“
+  mit Rückfrage, ob die Daten gelöscht werden sollen. Stille Installation: `/VERYSILENT` (übernimmt Ordner, Port, Optionen)
+- **Verknüpfung „OpenDeskSharing“** (Desktop, Startmenü): startet den Server bei Bedarf und öffnet den Browser –
+  ohne Konsolenfenster, mit Fortschrittsfenster; Administratorrechte werden nur angefragt, wenn der Server erst
+  gestartet werden muss. „OpenDeskSharing beenden“ entsprechend. Ersetzt die .bat-Dateien
+- Eigenes Programmsymbol
+- Schutz: Das Installationsprogramm überschreibt niemals einen Ordner, der zu einer anderen Installation gehört
+- Das Paket als ZIP mit `Installieren.bat` gibt es weiterhin (z. B. für Server ohne grafische Oberfläche)
+
 ## 1.6.0 – 19.10.2026
 - **Updates von GitHub:** Unter Einstellungen → System „Nach Updates suchen“ zeigt die neueste Version mit ihren
   Änderungen; „Version … installieren“ lädt das Paket von github.com/phillhf/OpenDeskSharing, prüft die SHA-256-Prüfsumme

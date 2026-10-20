@@ -14,7 +14,8 @@ dist\           fertige Pakete: OpenDeskSharing-<Version>.zip (+ .sha256)
 1. Änderungen in `src\` vornehmen
 2. `src\VERSION` erhöhen (1.0.0 → 1.0.1 Fehlerbehebung, → 1.1.0 neue Funktionen, → 2.0.0 große Umstellung)
 3. Eintrag in `src\CHANGELOG.md`
-4. `python build.py` → `dist\OpenDeskSharing-<Version>.zip`
+4. `python build.py` → `dist\OpenDeskSharing-<Version>.zip` und `dist\OpenDeskSharing-Setup-<Version>.exe`
+   (das Setup braucht Inno Setup 6 auf dem Entwicklungsrechner; Skript: `installer\OpenDeskSharing.iss`)
 5. Committen und pushen, dann `python release.py` → GitHub-Release `v<Version>` mit Paket, Prüfsumme und
    den Änderungen aus `CHANGELOG.md`. Installierte Server finden die Version unter
    Einstellungen → System → „Nach Updates suchen“.

@@ -18,12 +18,15 @@ Läuft komplett auf einem eigenen Windows-Server im Haus, ohne Cloud-Dienste, oh
 
 ## Installation
 
-1. Unter [Releases](https://github.com/phillhf/OpenDeskSharing/releases) die neueste `OpenDeskSharing-<Version>.zip` herunterladen.
-2. ZIP entpacken und `Installieren.bat` starten (fragt nach Administratorrechten).
-3. Das Installationsprogramm prüft die Voraussetzungen (Python ab 3.9 – auf Wunsch wird es installiert),
-   richtet den Server ein und zeigt Adresse und Erstanmeldung an.
+1. Unter [Releases](https://github.com/phillhf/OpenDeskSharing/releases) die neueste `OpenDeskSharing-Setup-<Version>.exe` herunterladen und starten.
+2. Der Assistent prüft die Voraussetzungen (Python ab 3.9 – auf Wunsch wird es installiert), fragt Port und Optionen ab,
+   richtet den Server ein und zeigt Adresse und Erstanmeldung an. Eine vorhandene Installation wird erkannt und aktualisiert.
 
-Gestartet wird der Server mit `OpenDeskSharing starten.bat` im Installationsordner bzw. über das Startmenü.
+Die Setup-Datei ist nicht digital signiert – Windows zeigt beim ersten Start „Der Computer wurde durch Windows geschützt“
+→ „Weitere Informationen“ → „Trotzdem ausführen“.
+
+Gestartet wird OpenDeskSharing über die Verknüpfung **„OpenDeskSharing“** auf dem Desktop bzw. im Startmenü.
+Ohne grafische Oberfläche: `OpenDeskSharing-<Version>.zip` entpacken und `Installieren.bat` ausführen.
 Details: [installer/LIESMICH.txt](installer/LIESMICH.txt)
 
 ## Updates

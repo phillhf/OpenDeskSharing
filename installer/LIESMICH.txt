@@ -7,6 +7,10 @@ Das Installationsprogramm erkennt selbst, was zu tun ist.
 
 SO GEHT'S
 ---------
+Am einfachsten mit dem grafischen Setup: OpenDeskSharing-Setup-<Version>.exe
+starten und dem Assistenten folgen (erkennt auch vorhandene Installationen).
+
+Alternativ mit diesem ZIP-Paket (z. B. Server ohne grafische Oberfläche):
 1. ZIP-Datei vollständig entpacken (Rechtsklick -> "Alle extrahieren").
 2. Im entpackten Ordner "Installieren.bat" doppelklicken.
 3. Die Frage nach Administratorrechten mit "Ja" bestätigen.
